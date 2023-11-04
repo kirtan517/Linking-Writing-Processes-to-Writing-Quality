@@ -8,16 +8,19 @@ class Remove_id(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y=None):
         """Remove the id column"""
-        self.remove_column = "id"
+        self.remove_column1 = "id"
+        self.remove_column2 = "event_id"
         return self
 
     def transform(self, X):
-        if self.remove_column in X.columns:
-            X = X.drop(columns=self.remove_column)
+        if self.remove_column1 in X.columns:
+            X = X.drop(columns=self.remove_column1)
+        if self.remove_column2 in X.columns:
+            X = X.drop(columns=self.remove_column2)
         return X.to_numpy()
 
     def get_feature_names_out(self, input_features=None):
-        return [f"Reduce_{i}" for i in input_features][1:]
+        return [f"Reduce_{i}" for i in input_features][2:]
 
 class Reduce_text_change(BaseEstimator,TransformerMixin):
     def __init__(self):
@@ -41,7 +44,6 @@ class Reduce_text_change(BaseEstimator,TransformerMixin):
                 self.final.append(len(element))
 
         temp = pd.concat([X,pd.Series(self.final)],axis = 1).to_numpy()[:,[-1]]
-        print(temp.shape)
         return temp
 
     def get_feature_names_out(self, input_features=None):
