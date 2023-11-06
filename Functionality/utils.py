@@ -32,7 +32,7 @@ def performCrossValidation(model,train_processed_df,train_logs_df,y):
                             return_train_score= True,return_estimator=True)
     scores = []
     for i in results["estimator"]:
-        result = makePredictions(model,train_processed_df,y,train_logs_df)
+        result = makePredictions(i,train_processed_df,y,train_logs_df)
         score = mean_squared_error(result["y_true"],result["y_pred"])
         scores.append(score)
     return scores
