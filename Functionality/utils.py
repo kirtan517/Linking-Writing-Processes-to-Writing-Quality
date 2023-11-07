@@ -3,8 +3,15 @@ from sklearn.model_selection import GridSearchCV,cross_validate
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import KFold
 
-def getX_Y(train_logs_df,train_scores_df):
+def getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation = False):
     final_df = pd.merge(train_logs_df,train_scores_df,on = "id",how = "inner")
+    if perform_harmonic_variation:
+        def HarmonicFunction(group):
+            group["score"] = group["score"] * group["event_id"] / max(group["event_id"])
+            return group
+
+        final_df = final_df.groupby("id").apply(HarmonicFunction)
+        final_df.reset_index(drop= True,inplace=True)
     return train_logs_df,final_df["score"]
 
 def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,results = False,):
