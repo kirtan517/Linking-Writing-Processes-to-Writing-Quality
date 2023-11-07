@@ -51,9 +51,13 @@ def performKfoldScore(model,train_processed_df,train_logs_df,y,k=5,optuna = Fals
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
         model.fit(X_train, y_train)
-        result = makePredictions(model, train_processed_df, y, train_logs_df)
+        y_pred = model.predict(X_train)
+        temp_df = pd.concat([pd.Series(y), pd.Series(y_pred), train_logs_df["id"]], axis=1)
+        final_df = temp_df.groupby("id").aggregate("mean")
+        final_df.columns = ["y_true", "y_pred"]
+        result = final_df[["y_true","y_pred"]].iloc[test_idx]
         score = mean_squared_error(result["y_true"], result["y_pred"])
-        
+
         cv_scores.append(score)
         print(f"Fold {i + 1}: {score:.2f}")
 
