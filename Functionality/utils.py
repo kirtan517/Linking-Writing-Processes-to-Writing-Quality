@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.model_selection import GridSearchCV,cross_validate
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import KFold
+import os
 
 def getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation = False):
     final_df = pd.merge(train_logs_df,train_scores_df,on = "id",how = "inner")
@@ -27,7 +28,7 @@ def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,result
     else:
         return score,best_model
 
-def makePredictions(model,X,y_true,train_logs_df):
+def makePredictions(model,X,y_true,train_logs_df,perform_harmonic_variation = False):
     y_pred = model.predict(X)
     temp_df = pd.concat([pd.Series(y_true),pd.Series(y_pred),train_logs_df["id"]],axis = 1)
     final_df = temp_df.groupby("id").aggregate("mean")
@@ -75,3 +76,17 @@ def performKfoldScore(model,train_processed_df,train_logs_df,y,k=5,optuna = Fals
     if optuna:
         trial.set_user_attr('rmse', mean_score)
     return mean_score
+
+if __name__ == "__main__":
+    # For Testing purpose on the small dataset
+    # Read the current files
+    train_logs_directory = os.path.join("..", "Data", "train_logs.csv")
+    train_scores_directory = os.path.join("..", "Data", "train_scores.csv")
+    train_logs_df = pd.read_csv(train_logs_directory)
+    train_scores_df = pd.read_csv(train_scores_directory)
+    train_logs_df = train_logs_df.iloc[:100]
+    train_scores_df = train_scores_df.iloc[:100]
+
+    num_attributes = ["id", "event_id", "down_time", "up_time", "action_time", "cursor_position", "word_count"]
+    final_df,y = getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation= True)
+    print(y)
