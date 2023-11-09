@@ -36,7 +36,11 @@ def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,result
 def makePredictions(model,X,train_logs_df,perform_harmonic_variation = False,aggregation = False):
     y_pred = model.predict(X)
     if aggregation:
-        final_df = pd.DataFrame(pd.Series(y_pred), columns=["y_pred"])
+        temp_df = train_logs_df[["event_id","id"]].groupby("id").aggregate("mean")
+        temp_df = temp_df.reset_index()
+        final_df = pd.concat([pd.Series(y_pred), temp_df["id"]], axis=1)
+        final_df.columns = ["y_pred", "id"]
+        final_df = final_df.set_index("id")
         return final_df
     temp_df = pd.concat([pd.Series(y_pred),train_logs_df["id"]],axis = 1)
     final_df = temp_df.groupby("id").aggregate("mean")
