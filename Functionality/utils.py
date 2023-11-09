@@ -22,9 +22,12 @@ def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,result
     grid_search = GridSearchCV(estimator=estimator,param_grid=params,scoring="neg_root_mean_squared_error",cv=6,return_train_score = True)
     grid_search.fit(train_processed_df,y)
     best_model = grid_search.best_estimator_
+    if aggregation:
+        results = pd.DataFrame(grid_search.cv_results_)
+        return best_model,results
     result = makePredictions(best_model,train_processed_df,y,train_logs_df)
-    score = mean_squared_error(result["y_true"],result["y_pred"])
-    if(results):
+    score = mean_squared_error(y,result["y_pred"])
+    if results:
         results = pd.DataFrame(grid_search.cv_results_)
         return score,best_model,results
     else:
@@ -48,10 +51,14 @@ def aggreagateAlongId(train_processed_df,train_logs_df):
 
 def performCrossValidation(model,train_processed_df,train_logs_df,y,aggregation = False):
     """Return score"""
+    # TODO : This is only reuturning train score also return test score
     results = cross_validate(model,train_processed_df,y,scoring="neg_root_mean_squared_error",cv =6,
                             return_train_score= True,return_estimator=True)
     if aggregation:
-        return results["test_score"] * -1
+        results["test_score"] = results["test_score"] * -1
+        results["train_score"] = results["train_score"] * -1
+        results = pd.DataFrame(results)
+        return results[["test_score","train_score"]]
     scores = []
     for i in results["estimator"]:
         result = makePredictions(i,train_processed_df,y,train_logs_df)
