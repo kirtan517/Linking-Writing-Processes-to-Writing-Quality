@@ -84,7 +84,7 @@ class Reduce_text_change(BaseEstimator, TransformerMixin):
         return temp
 
     def get_feature_names_out(self, input_features=None):
-        return [f"text_changed_{i}" for i in input_features]
+        return [f"{i}" for i in input_features]
 
 
 class Reduce_activity(BaseEstimator, TransformerMixin):
@@ -108,7 +108,7 @@ class Reduce_activity(BaseEstimator, TransformerMixin):
         return temp
 
     def get_feature_names_out(self, input_features=None):
-        return [f"activity_changed_{i}" for i in input_features]
+        return [f"{i}" for i in input_features]
 
 
 class Reduce_event(BaseEstimator, TransformerMixin):
@@ -173,7 +173,45 @@ class Reduce_event(BaseEstimator, TransformerMixin):
         return self.temp.to_numpy()
 
     def get_feature_names_out(self, input_features=None):
-        return [f"activity_changed_{i}" for i in self.features]
+        return [f"{i}" for i in self.features]
+
+
+class Aggregation(BaseEstimator, TransformerMixin):
+    def __init__(self, ):
+        """Here assumption has been made that all the previous transformation is being added
+        Also the id and event_id columns are been added to the dataset """
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        temp_df = X.groupby("id")
+        aggregation_functions = {
+            'action_time': ['sum', 'mean', 'std', 'min', 'max'],
+            'cursor_position': ['sum', 'mean', 'std', 'min', 'max'],
+            'word_count': 'sum',
+            'difference_time': ['sum', 'mean', 'std', 'min', 'max'],
+            'text_change': ['sum', 'mean', 'std', 'min', 'max'],
+            'activity_Input': ['sum'],
+            'activity_Move': ['sum'],
+            'activity_Nonproduction': ['sum'],
+            'activity_Paste': ['sum'],
+            'activity_Remove/Cut': ['sum'],
+            'activity_Replace': ['sum'],
+            'Punchuations': ['sum'],
+            'Characters': ['sum'],
+            'Numbers': ['sum'],
+            'Operations': ['sum'],
+            'Unknows': ['sum'],
+            'event_id': ['max'],
+        }
+        final_df = temp_df.agg(aggregation_functions)
+        self.features = [f"{agg}_{col}" if agg != 'count' else col for col, agg in final_df.columns]
+        return final_df.to_numpy()
+
+    def get_feature_names_out(self, input_features=None):
+        return [f"{i}" for i in self.features]
 
 
 if __name__ == "__main__":

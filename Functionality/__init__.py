@@ -1,3 +1,3 @@
-from .Transformations import Reduce_numerical_columns,Reduce_event,Reduce_activity,Reduce_text_change
-from .utils import getX_Y,makePredictions,perfromGridSearch,performCrossValidation,performKfoldScore
+from .Transformations import Reduce_numerical_columns,Reduce_event,Reduce_activity,Reduce_text_change,Aggregation
+from .utils import getX_Y,makePredictions,perfromGridSearch,performCrossValidation,performKfoldScore,ConcatAlongId
 from .models import getModel

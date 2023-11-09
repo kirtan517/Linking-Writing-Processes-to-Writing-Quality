@@ -4,7 +4,9 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import KFold
 import os
 
-def getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation = False):
+def getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation = False,aggregation = False):
+    if aggregation:
+        return train_logs_df,train_scores_df["score"]
     final_df = pd.merge(train_logs_df,train_scores_df,on = "id",how = "inner")
     if perform_harmonic_variation:
         def HarmonicFunction(group):
@@ -15,7 +17,7 @@ def getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation = False):
         final_df.reset_index(drop= True,inplace=True)
     return train_logs_df,final_df["score"]
 
-def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,results = False,):
+def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,results = False,aggregation = False):
     """return : score, model"""
     grid_search = GridSearchCV(estimator=estimator,param_grid=params,scoring="neg_root_mean_squared_error",cv=6,return_train_score = True)
     grid_search.fit(train_processed_df,y)
@@ -28,17 +30,28 @@ def perfromGridSearch(estimator,params,train_processed_df,train_logs_df,y,result
     else:
         return score,best_model
 
-def makePredictions(model,X,y_true,train_logs_df,perform_harmonic_variation = False):
+def makePredictions(model,X,train_logs_df,perform_harmonic_variation = False,aggregation = False):
     y_pred = model.predict(X)
-    temp_df = pd.concat([pd.Series(y_true),pd.Series(y_pred),train_logs_df["id"]],axis = 1)
+    if aggregation:
+        final_df = pd.DataFrame(pd.Series(y_pred), columns=["y_pred"])
+        return final_df
+    temp_df = pd.concat([pd.Series(y_pred),train_logs_df["id"]],axis = 1)
     final_df = temp_df.groupby("id").aggregate("mean")
-    final_df.columns = ["y_true","y_pred"]
+    final_df.columns = ["y_pred"]
     return final_df
 
-def performCrossValidation(model,train_processed_df,train_logs_df,y):
+def aggreagateAlongId(train_processed_df,train_logs_df):
+    temp_df = pd.concat([train_processed_df,train_logs_df["id"]],axis = 1)
+    final_df = temp_df.groupby("id").agg("sum")
+    final_df = final_df.reset_index()
+    return final_df
+
+def performCrossValidation(model,train_processed_df,train_logs_df,y,aggregation = False):
     """Return score"""
     results = cross_validate(model,train_processed_df,y,scoring="neg_root_mean_squared_error",cv =6,
                             return_train_score= True,return_estimator=True)
+    if aggregation:
+        return results["test_score"] * -1
     scores = []
     for i in results["estimator"]:
         result = makePredictions(i,train_processed_df,y,train_logs_df)
@@ -77,6 +90,14 @@ def performKfoldScore(model,train_processed_df,train_logs_df,y,k=5,optuna = Fals
         trial.set_user_attr('rmse', mean_score)
     return mean_score
 
+def ConcatAlongId(train_processed_df,train_logs_df):
+    try:
+        train_processed_df.columns = [i.split("__")[1] for i in train_processed_df.columns]
+    except:
+        pass
+    temp_df = pd.concat([train_processed_df,train_logs_df[["id","event_id"]]],axis = 1)
+    return temp_df
+
 if __name__ == "__main__":
     # For Testing purpose on the small dataset
     # Read the current files
@@ -88,5 +109,5 @@ if __name__ == "__main__":
     train_scores_df = train_scores_df.iloc[:100]
 
     num_attributes = ["id", "event_id", "down_time", "up_time", "action_time", "cursor_position", "word_count"]
-    final_df,y = getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation= True)
+    final_df,y = getX_Y(train_logs_df,train_scores_df,perform_harmonic_variation= False,aggregation = True)
     print(y)
