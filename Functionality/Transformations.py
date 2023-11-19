@@ -192,7 +192,7 @@ class Aggregation(BaseEstimator, TransformerMixin):
         aggregation_functions = {
             'action_time': ['sum', 'mean', 'std', 'min', 'max'],
             'cursor_position': ['sum', 'mean', 'std', 'min', 'max'],
-            'word_count': 'sum',
+            'word_count': ['sum',],
             'difference_time': ['sum', 'mean', 'std', 'min', 'max'],
             'text_change': ['sum', 'mean', 'std', 'min', 'max'],
             'activity_Input': ['sum'],
