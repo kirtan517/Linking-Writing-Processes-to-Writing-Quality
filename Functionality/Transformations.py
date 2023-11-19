@@ -5,6 +5,7 @@ import os
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder
 import numpy as np
 import re
 
@@ -107,7 +108,9 @@ class Reduce_activity(BaseEstimator, TransformerMixin):
                 self.final.append("Move")
             else:
                 self.final.append(i)
+
         temp = pd.concat([X, pd.Series(self.final)], axis=1).to_numpy()[:, [-1]]
+        self.features = [""]
         return temp
 
     def get_feature_names_out(self, input_features=None):
@@ -116,10 +119,11 @@ class Reduce_activity(BaseEstimator, TransformerMixin):
 
 class Reduce_event(BaseEstimator, TransformerMixin):
 
-    def __init__(self):
+    def __init__(self,name = "Up"):
         self.temp = None
         self.features = None
         self.storage = None
+        self.name = name
         self.punchuations = ["'", '-', '!', '"', '#', '$', '%', '&', '(', ')', '*', ',', '.', '/', ':', ';', '?', '@',
                              '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~', '+', '<', '=', '>']
         self.characters = list(string.ascii_letters)
@@ -172,6 +176,7 @@ class Reduce_event(BaseEstimator, TransformerMixin):
 
         self.temp = pd.DataFrame(self.storage)
         self.features = list(self.temp.columns)
+        self.features = [self.name + "_" + s for s in self.features]
 
         return self.temp.to_numpy()
 
@@ -192,7 +197,7 @@ class Aggregation(BaseEstimator, TransformerMixin):
         aggregation_functions = {
             'action_time': ['sum', 'mean', 'std', 'min', 'max'],
             'cursor_position': ['sum', 'mean', 'std', 'min', 'max'],
-            'word_count': ['sum',],
+            'word_count': ['sum','min','max'],
             'difference_time': ['sum', 'mean', 'std', 'min', 'max'],
             'text_change': ['sum', 'mean', 'std', 'min', 'max'],
             'activity_Input': ['sum'],
@@ -201,11 +206,16 @@ class Aggregation(BaseEstimator, TransformerMixin):
             'activity_Paste': ['sum'],
             'activity_Remove/Cut': ['sum'],
             'activity_Replace': ['sum'],
-            'Punchuations': ['sum'],
-            'Characters': ['sum'],
-            'Numbers': ['sum'],
-            'Operations': ['sum'],
-            'Unknows': ['sum'],
+            # 'Up_Punchuations': ['sum'],
+            # 'Up_Characters': ['sum'],
+            # 'Up_Numbers': ['sum'],
+            # 'Up_Operations': ['sum'],
+            # 'Up_Unknows': ['sum'],
+            'Down_Punchuations': ['sum'],
+            'Down_Characters': ['sum'],
+            'Down_Numbers': ['sum'],
+            'Down_Operations': ['sum'],
+            'Down_Unknows': ['sum'],
             'event_id': ['max'],
         }
         final_df = X.groupby("id").agg(aggregation_functions).reset_index()
@@ -230,7 +240,8 @@ if __name__ == "__main__":
 
     processing = ColumnTransformer([
         # ("RemoveId", make_pipeline(Reduce_numerical_columns(), StandardScaler()), num_attributes),
-        ("ValueSum", make_pipeline(Reduce_text_change()), ["id","text_change"]),
+        # ("ValueSum", make_pipeline(Reduce_text_change()), ["id","text_change"]),
+
     ])
 
     train_processed_numpy = processing.fit_transform(train_logs_df)
