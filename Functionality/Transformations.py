@@ -5,6 +5,8 @@ import os
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+import numpy as np
+import re
 
 
 class Reduce_numerical_columns(BaseEstimator, TransformerMixin):
@@ -81,10 +83,11 @@ class Reduce_text_change(BaseEstimator, TransformerMixin):
                 self.final.append(len(element))
 
         temp = pd.concat([X, pd.Series(self.final)], axis=1).to_numpy()[:, [-1]]
+        self.features = ["text_change"]
         return temp
 
     def get_feature_names_out(self, input_features=None):
-        return [f"{i}" for i in input_features]
+        return [f"{i}" for i in self.features]
 
 
 class Reduce_activity(BaseEstimator, TransformerMixin):
@@ -186,7 +189,6 @@ class Aggregation(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        temp_df = X.groupby("id")
         aggregation_functions = {
             'action_time': ['sum', 'mean', 'std', 'min', 'max'],
             'cursor_position': ['sum', 'mean', 'std', 'min', 'max'],
@@ -206,7 +208,7 @@ class Aggregation(BaseEstimator, TransformerMixin):
             'Unknows': ['sum'],
             'event_id': ['max'],
         }
-        final_df = temp_df.agg(aggregation_functions)
+        final_df = X.groupby("id").agg(aggregation_functions).reset_index()
         self.features = [f"{agg}_{col}" if agg != 'count' else col for col, agg in final_df.columns]
         return final_df.to_numpy()
 
@@ -227,8 +229,10 @@ if __name__ == "__main__":
     num_attributes = ["id", "event_id", "down_time", "up_time", "action_time", "cursor_position", "word_count"]
 
     processing = ColumnTransformer([
-        ("RemoveId", make_pipeline(Reduce_numerical_columns(), StandardScaler()), num_attributes),
+        # ("RemoveId", make_pipeline(Reduce_numerical_columns(), StandardScaler()), num_attributes),
+        ("ValueSum", make_pipeline(Reduce_text_change()), ["id","text_change"]),
     ])
 
     train_processed_numpy = processing.fit_transform(train_logs_df)
     train_processed_df = pd.DataFrame(train_processed_numpy, columns=processing.get_feature_names_out())
+    print(train_processed_df)
