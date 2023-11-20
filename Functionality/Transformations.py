@@ -134,29 +134,42 @@ class Reduce_event(BaseEstimator, TransformerMixin):
                            'Process', 'Pause', 'PageUp', 'PageDown', 'OS', 'NumLock', 'ModeChange', 'Middleclick',
                            'Meta', 'MediaTrackPrevious', 'MediaTrackNext', 'MediaPlayPause', 'Leftclick', 'Insert',
                            'Home']
+        self.events = ['q', 'Space', 'Backspace', 'Shift', 'ArrowRight', 'Leftclick', 'ArrowLeft', '.', ',',
+                       'ArrowDown', 'ArrowUp', 'Enter', 'CapsLock', "'", 'Delete', 'Unidentified']
         self.numbers = list(string.digits)
 
-    def addRemaining(self, key):
-        for i in self.storage.keys():
+    def addRemaining(self,storage, key):
+        for i in storage.keys():
             if i != key:
-                self.storage[i].append(0)
+                storage[i].append(0)
+
 
     def manage(self, value):
         if value in self.punchuations:
             self.storage["Punchuations"].append(1.0)
-            self.addRemaining("Punchuations")
+            self.addRemaining(self.storage,"Punchuations")
         elif value in self.characters:
             self.storage["Characters"].append(1.0)
-            self.addRemaining("Characters")
+            self.addRemaining(self.storage,"Characters")
         elif value in self.numbers:
             self.storage["Numbers"].append(1.0)
-            self.addRemaining("Numbers")
+            self.addRemaining(self.storage,"Numbers")
         elif value in self.operations:
             self.storage["Operations"].append(1.0)
-            self.addRemaining("Operations")
+            self.addRemaining(self.storage,"Operations")
         else:
             self.storage["Unknows"].append(1.0)
-            self.addRemaining("Unknows")
+            self.addRemaining(self.storage,"Unknows")
+
+    def manage2(self,value):
+        if value in self.events:
+            index = self.events.index(value)
+            self.storage2[f"Events_{index}"].append(1.0)
+            self.addRemaining(self.storage2,f"Events_{index}")
+        else:
+            index = self.events.index("Unidentified")
+            self.storage2[f"Events_{index}"].append(1.0)
+            self.addRemaining(self.storage2,f"Events_{index}")
 
     def fit(self, X, y=None):
         # Here X is the column
@@ -171,10 +184,16 @@ class Reduce_event(BaseEstimator, TransformerMixin):
             "Operations": [],
             "Unknows": [],
         }
+
+        self.storage2 = {f"Events_{i}":[] for i,j in enumerate(self.events)}
+
         for i in X[name]:
             self.manage(i)
+            self.manage2(i)
 
         self.temp = pd.DataFrame(self.storage)
+        self.temp2 = pd.DataFrame(self.storage2)
+        self.temp = pd.concat([self.temp,self.temp2],axis = 1)
         self.features = list(self.temp.columns)
         self.features = [self.name + "_" + s for s in self.features]
 
@@ -194,6 +213,8 @@ class Aggregation(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
+        self.events =  ['q', 'Space', 'Backspace', 'Shift', 'ArrowRight', 'Leftclick', 'ArrowLeft', '.', ',',
+                       'ArrowDown', 'ArrowUp', 'Enter', 'CapsLock', "'", 'Delete', 'Unidentified']
         aggregation_functions = {
             'action_time': ['sum', 'mean', 'std', 'min', 'max'],
             'cursor_position': ['sum', 'mean', 'std', 'min', 'max'],
@@ -218,6 +239,8 @@ class Aggregation(BaseEstimator, TransformerMixin):
             'Down_Unknows': ['sum'],
             'event_id': ['max'],
         }
+        for i,j in enumerate(self.events):
+            aggregation_functions[f"Down_Events_{i}"] = ["sum"]
         final_df = X.groupby("id").agg(aggregation_functions).reset_index()
         self.features = [f"{agg}_{col}" if agg != 'count' else col for col, agg in final_df.columns]
         return final_df.to_numpy()
@@ -229,21 +252,35 @@ class Aggregation(BaseEstimator, TransformerMixin):
 if __name__ == "__main__":
     # For Testing purpose on the small dataset
     # Read the current files
+    from utils import ConcatAlongId
     train_logs_directory = os.path.join("..", "Data", "train_logs.csv")
     train_scores_directory = os.path.join("..", "Data", "train_scores.csv")
     train_logs_df = pd.read_csv(train_logs_directory)
     train_scores_df = pd.read_csv(train_scores_directory)
-    train_logs_df = train_logs_df.iloc[:100]
-    train_scores_df = train_scores_df.iloc[:100]
+    train_logs_df = train_logs_df.iloc[:5000]
+    train_scores_df = train_scores_df.iloc[:5000]
 
     num_attributes = ["id", "event_id", "down_time", "up_time", "action_time", "cursor_position", "word_count"]
 
     processing = ColumnTransformer([
-        # ("RemoveId", make_pipeline(Reduce_numerical_columns(), StandardScaler()), num_attributes),
-        # ("ValueSum", make_pipeline(Reduce_text_change()), ["id","text_change"]),
-
-    ])
+        ("RemoveId", make_pipeline(Reduce_numerical_columns()), num_attributes),
+        ("ValueSum", make_pipeline(Reduce_text_change()), ["text_change", "id"]),
+        ("RemoveMove", make_pipeline(Reduce_activity(), OneHotEncoder(sparse_output=False)), ["activity"]),
+        # ("ReduceUpEvents",make_pipeline(Reduce_event(name = "Up")),["up_event"]),
+        ("ReduceDownEvents", make_pipeline(Reduce_event(name="Down")), ["down_event"]),
+    ],
+        # remainder="passthrough"
+    )
 
     train_processed_numpy = processing.fit_transform(train_logs_df)
     train_processed_df = pd.DataFrame(train_processed_numpy, columns=processing.get_feature_names_out())
-    print(train_processed_df)
+
+    # Concating the columns
+    train_postprocessed_df = ConcatAlongId(train_processed_df, train_logs_df)
+    post_processing = make_pipeline(Aggregation())
+
+    # Aggreagating the columns for both train and test
+    train_postprocessed_numpy = post_processing.fit_transform(train_postprocessed_df)
+    train_postprocessed_df = pd.DataFrame(train_postprocessed_numpy, columns=post_processing.get_feature_names_out())
+
+
