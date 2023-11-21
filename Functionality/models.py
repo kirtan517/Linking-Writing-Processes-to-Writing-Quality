@@ -56,6 +56,28 @@ def getSgdRegerssion(optuna,trial = None):
     ]
     return sgdreg,params_grid
 
+def getLGBMRegressor(optuna,trial = None):
+    if optuna == True:
+
+        params_grid =[
+            {
+            'metric': 'rmse',
+            'random_state': 42,
+            'n_estimators':  trial.suggest_int("n_estimators", 50, 350),
+            'reg_alpha': trial.suggest_loguniform('reg_alpha', 1e-3, 10.0),
+            'reg_lambda': trial.suggest_loguniform('reg_lambda', 1e-3, 10.0),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1),
+            'subsample': trial.suggest_float('subsample', 0.5, 1),
+            'learning_rate': trial.suggest_float('learning_rate', 1e-4, 0.1, log=True),
+            'num_leaves': trial.suggest_int('num_leaves', 8, 64),
+            'min_child_samples': trial.suggest_int('min_child_samples', 1, 100),
+            }
+        ]
+        model = lgb.LGBMRegressor(**params_grid[0])
+        return model,params_grid
+    else:
+        return None,None
+
 def getModel(model_name,optuna = False,trial = None):
     model,params = None,None
     if model_name == "LinearRegression":
@@ -64,4 +86,6 @@ def getModel(model_name,optuna = False,trial = None):
         model,params = getSgdRegerssion(optuna,trial)
     elif model_name == "RandomForestRegressor":
         model,params = getRandomForestRegression(optuna,trial)
+    elif model_name == "LGBMRegressor":
+        model,params = getLGBMRegressor(optuna,trial)
     return model,params
