@@ -1,5 +1,6 @@
 from sklearn.linear_model import SGDRegressor,LinearRegression
 from sklearn.ensemble import RandomForestRegressor
+import lightgbm as lgb
 
 def getRandomForestRegression(optuna,trial = None):
     if optuna == False:
