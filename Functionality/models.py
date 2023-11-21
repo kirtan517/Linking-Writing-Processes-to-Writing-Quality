@@ -72,6 +72,7 @@ def getLGBMRegressor(optuna,trial = None):
             'learning_rate': trial.suggest_float('learning_rate', 1e-4, 0.1, log=True),
             'num_leaves': trial.suggest_int('num_leaves', 8, 64),
             'min_child_samples': trial.suggest_int('min_child_samples', 1, 100),
+            'max_depth': trial.suggest_int('max_depth', 10, 300),
             }
         ]
         model = lgb.LGBMRegressor(**params_grid[0])

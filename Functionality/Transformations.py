@@ -74,6 +74,11 @@ class Reduce_text_change(BaseEstimator, TransformerMixin):
     def transform(self, X):
         # TODO: Optimize this code with vertorize operations
         self.final = []
+        self.input_word_count = []
+        self.input_word_length_max = []
+        self.input_word_length_min = []
+        self.input_word_length_sum = []
+
         for element in X["text_change"]:
             if "=>" in element:
                 left, right = element.split("=>")
@@ -83,8 +88,8 @@ class Reduce_text_change(BaseEstimator, TransformerMixin):
             else:
                 self.final.append(len(element))
 
-        temp = pd.concat([X, pd.Series(self.final)], axis=1).to_numpy()[:, [-1]]
-        self.features = ["text_change"]
+        temp = pd.concat([X["text_change"], pd.Series(self.final)], axis=1).to_numpy()
+        self.features = ["original_text_change","text_change"]
         return temp
 
     def get_feature_names_out(self, input_features=None):
@@ -243,8 +248,35 @@ class Aggregation(BaseEstimator, TransformerMixin):
             aggregation_functions[f"Down_Events_{i}"] = ["sum"]
         final_df = X.groupby("id").agg(aggregation_functions).reset_index()
         self.features = [f"{agg}_{col}" if agg != 'count' else col for col, agg in final_df.columns]
+
+        # Adding input_word_length_mean feature
+        # final_df["input_word_length_mean"] = final_df[( 'input_word_length_sum',  'sum')] / final_df[('input_word_count', 'sum')]
+        # self.features.append("input_word_length_mean")
+
+        #Adding input_word_features
+        temp_df = self.addInputWordfeatuers(X)
+        final_df = pd.concat([final_df,temp_df],axis = 1)
+        self.features.extend(list(temp_df.columns))
+
         return final_df.to_numpy()
 
+    def addInputWordfeatuers(self,X):
+        #TODO: try adding the replace features as well
+        temp_df = X[~(X["original_text_change"].str.contains("=>")) & (X["text_change"] != "NoChange")].reset_index(drop=True)
+        temp_df = temp_df.groupby("id").agg({"original_text_change" : list}).reset_index()
+        temp_df['original_text_change'] = temp_df['original_text_change'].apply(lambda x: ''.join(x))
+        temp_df['original_text_change'] = temp_df['original_text_change'].apply(lambda x: re.findall(r'q+', x))
+
+
+        temp_df['input_word_count'] = temp_df['original_text_change'].apply(len)
+        temp_df['input_word_length_mean'] = temp_df['original_text_change'].apply(
+            lambda x: np.mean([len(i) for i in x] if len(x) > 0 else 0))
+        temp_df['input_word_length_max'] = temp_df['original_text_change'].apply(
+            lambda x: np.max([len(i) for i in x] if len(x) > 0 else 0))
+        temp_df['input_word_length_std'] = temp_df['original_text_change'].apply(
+            lambda x: np.std([len(i) for i in x] if len(x) > 0 else 0))
+        temp_df.drop(['original_text_change','id'], axis=1, inplace=True)
+        return temp_df
     def get_feature_names_out(self, input_features=None):
         return [f"{i}" for i in self.features]
 
@@ -257,8 +289,8 @@ if __name__ == "__main__":
     train_scores_directory = os.path.join("..", "Data", "train_scores.csv")
     train_logs_df = pd.read_csv(train_logs_directory)
     train_scores_df = pd.read_csv(train_scores_directory)
-    train_logs_df = train_logs_df.iloc[:5000]
-    train_scores_df = train_scores_df.iloc[:5000]
+    train_logs_df = train_logs_df.iloc[:50000]
+    train_scores_df = train_scores_df.iloc[:50000]
 
     num_attributes = ["id", "event_id", "down_time", "up_time", "action_time", "cursor_position", "word_count"]
 
@@ -282,5 +314,6 @@ if __name__ == "__main__":
     # Aggreagating the columns for both train and test
     train_postprocessed_numpy = post_processing.fit_transform(train_postprocessed_df)
     train_postprocessed_df = pd.DataFrame(train_postprocessed_numpy, columns=post_processing.get_feature_names_out())
+    print(train_postprocessed_df["input_word_length_max"])
 
 
