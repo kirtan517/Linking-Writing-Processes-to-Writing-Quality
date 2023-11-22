@@ -106,6 +106,9 @@ def ConcatAlongId(train_processed_df,train_logs_df):
         train_processed_df.columns = [i.split("__")[1] for i in train_processed_df.columns]
     except:
         pass
+    if "id" in train_processed_df.columns:
+        return train_processed_df
+    print("Concatenated the id and event id")
     temp_df = pd.concat([train_processed_df,train_logs_df[["id","event_id"]]],axis = 1)
     return temp_df
 

@@ -8,14 +8,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 import numpy as np
 import re
+from collections import Counter
+
 
 
 class Reduce_numerical_columns(BaseEstimator, TransformerMixin):
     def __init__(self,
-                 isRemove_id=True,
-                 isRemove_event_id=True,
-                 isRemove_up_time=True,
-                 isRemove_down_time=True,
+                 isRemove_id = False,
+                 isRemove_event_id=False,
+                 isRemove_up_time=False,
+                 isRemove_down_time=False,
                  add_difference_time=True):
         self.remove_id = None
         self.remove_event_id = None
@@ -73,23 +75,20 @@ class Reduce_text_change(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         # TODO: Optimize this code with vertorize operations
-        self.final = []
-        self.input_word_count = []
-        self.input_word_length_max = []
-        self.input_word_length_min = []
-        self.input_word_length_sum = []
+        final = []
 
         for element in X["text_change"]:
             if "=>" in element:
                 left, right = element.split("=>")
-                self.final.append(len(right) - len(left))
+                final.append(len(right) - len(left))
             elif element == "NoChange":
-                self.final.append(0)
+                final.append(0)
             else:
-                self.final.append(len(element))
+                final.append(len(element))
 
-        temp = pd.concat([X["text_change"], pd.Series(self.final)], axis=1).to_numpy()
-        self.features = ["original_text_change","text_change"]
+        temp = pd.concat([X, pd.Series(final)], axis=1).to_numpy()[:, [-1]]
+        final = []
+        self.features = ["text_change"]
         return temp
 
     def get_feature_names_out(self, input_features=None):
@@ -98,7 +97,7 @@ class Reduce_text_change(BaseEstimator, TransformerMixin):
 
 class Reduce_activity(BaseEstimator, TransformerMixin):
     def __init__(self):
-        self.final = None
+        pass
 
     def fit(self, X, y=None):
         """Remove the id column"""
@@ -107,15 +106,16 @@ class Reduce_activity(BaseEstimator, TransformerMixin):
     def transform(self, X):
         # X is the column here
         # Find and replace values that start with "Move" in the 'activity' column
-        self.final = []
+        final = []
         for i in X["activity"]:
             if i.startswith("Move"):
-                self.final.append("Move")
+                final.append("Move")
             else:
-                self.final.append(i)
+                final.append(i)
 
-        temp = pd.concat([X, pd.Series(self.final)], axis=1).to_numpy()[:, [-1]]
+        temp = pd.concat([X, pd.Series(final)], axis=1).to_numpy()[:, [-1]]
         self.features = [""]
+        final = []
         return temp
 
     def get_feature_names_out(self, input_features=None):
@@ -139,9 +139,8 @@ class Reduce_event(BaseEstimator, TransformerMixin):
                            'Process', 'Pause', 'PageUp', 'PageDown', 'OS', 'NumLock', 'ModeChange', 'Middleclick',
                            'Meta', 'MediaTrackPrevious', 'MediaTrackNext', 'MediaPlayPause', 'Leftclick', 'Insert',
                            'Home']
-        self.events = ['q', 'Space', 'Backspace', 'Shift', 'ArrowRight', 'Leftclick', 'ArrowLeft', '.', ',',
-                       'ArrowDown', 'ArrowUp', 'Enter', 'CapsLock', "'", 'Delete', 'Unidentified']
         self.numbers = list(string.digits)
+
 
     def addRemaining(self,storage, key):
         for i in storage.keys():
@@ -166,15 +165,6 @@ class Reduce_event(BaseEstimator, TransformerMixin):
             self.storage["Unknows"].append(1.0)
             self.addRemaining(self.storage,"Unknows")
 
-    def manage2(self,value):
-        if value in self.events:
-            index = self.events.index(value)
-            self.storage2[f"Events_{index}"].append(1.0)
-            self.addRemaining(self.storage2,f"Events_{index}")
-        else:
-            index = self.events.index("Unidentified")
-            self.storage2[f"Events_{index}"].append(1.0)
-            self.addRemaining(self.storage2,f"Events_{index}")
 
     def fit(self, X, y=None):
         # Here X is the column
@@ -190,17 +180,22 @@ class Reduce_event(BaseEstimator, TransformerMixin):
             "Unknows": [],
         }
 
-        self.storage2 = {f"Events_{i}":[] for i,j in enumerate(self.events)}
 
         for i in X[name]:
             self.manage(i)
-            self.manage2(i)
 
         self.temp = pd.DataFrame(self.storage)
-        self.temp2 = pd.DataFrame(self.storage2)
-        self.temp = pd.concat([self.temp,self.temp2],axis = 1)
         self.features = list(self.temp.columns)
         self.features = [self.name + "_" + s for s in self.features]
+
+        self.storage = {
+            "Punchuations": [],
+            "Characters": [],
+            "Numbers": [],
+            "Operations": [],
+            "Unknows": [],
+        }
+
 
         return self.temp.to_numpy()
 
@@ -212,18 +207,17 @@ class Aggregation(BaseEstimator, TransformerMixin):
     def __init__(self, ):
         """Here assumption has been made that all the previous transformation is being added
         Also the id and event_id columns are been added to the dataset """
-        pass
+        self.events = ['q', 'Space', 'Backspace', 'Shift', 'ArrowRight', 'Leftclick', 'ArrowLeft', '.', ',',
+                       'ArrowDown', 'ArrowUp', 'Enter', 'CapsLock', "'", 'Delete', 'Unidentified']
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X):
-        self.events =  ['q', 'Space', 'Backspace', 'Shift', 'ArrowRight', 'Leftclick', 'ArrowLeft', '.', ',',
-                       'ArrowDown', 'ArrowUp', 'Enter', 'CapsLock', "'", 'Delete', 'Unidentified']
-        aggregation_functions = {
-            'action_time': ['sum', 'mean', 'std', 'min', 'max'],
+
+        aggregation_functions_1 = {
+            'action_time': ['mean', 'std', 'min', 'max', 'last', 'first', 'sem', 'median', 'sum'],
             'cursor_position': ['sum', 'mean', 'std', 'min', 'max'],
-            'word_count': ['sum','min','max'],
             'difference_time': ['sum', 'mean', 'std', 'min', 'max'],
             'text_change': ['sum', 'mean', 'std', 'min', 'max'],
             'activity_Input': ['sum'],
@@ -237,46 +231,33 @@ class Aggregation(BaseEstimator, TransformerMixin):
             # 'Up_Numbers': ['sum'],
             # 'Up_Operations': ['sum'],
             # 'Up_Unknows': ['sum'],
+        }
+        aggregation_functions_2 = {
+            'down_time': ['mean', 'std', 'min', 'max', 'last', 'first', 'sem', 'median', 'sum'],
+            'up_time': ['mean', 'std', 'min', 'max', 'last', 'first', 'sem', 'median', 'sum'],
             'Down_Punchuations': ['sum'],
             'Down_Characters': ['sum'],
             'Down_Numbers': ['sum'],
             'Down_Operations': ['sum'],
             'Down_Unknows': ['sum'],
-            'event_id': ['max'],
+
         }
-        for i,j in enumerate(self.events):
-            aggregation_functions[f"Down_Events_{i}"] = ["sum"]
-        final_df = X.groupby("id").agg(aggregation_functions).reset_index()
+
+
+        X[X.columns.difference(["id"])] = X[X.columns.difference(["id"])].astype(float)
+
+
+        final_df1 = X.groupby("id").agg(aggregation_functions_1).reset_index()
+        final_df3 = X.groupby("id").agg(aggregation_functions_2).reset_index()
+        final_df3.drop("id", inplace=True, axis=1)
+
+        final_df = pd.concat([final_df1,final_df3],axis = 1)
         self.features = [f"{agg}_{col}" if agg != 'count' else col for col, agg in final_df.columns]
-
-        # Adding input_word_length_mean feature
-        # final_df["input_word_length_mean"] = final_df[( 'input_word_length_sum',  'sum')] / final_df[('input_word_count', 'sum')]
-        # self.features.append("input_word_length_mean")
-
-        #Adding input_word_features
-        temp_df = self.addInputWordfeatuers(X)
-        final_df = pd.concat([final_df,temp_df],axis = 1)
-        self.features.extend(list(temp_df.columns))
 
         return final_df.to_numpy()
 
-    def addInputWordfeatuers(self,X):
-        #TODO: try adding the replace features as well
-        temp_df = X[~(X["original_text_change"].str.contains("=>")) & (X["text_change"] != "NoChange")].reset_index(drop=True)
-        temp_df = temp_df.groupby("id").agg({"original_text_change" : list}).reset_index()
-        temp_df['original_text_change'] = temp_df['original_text_change'].apply(lambda x: ''.join(x))
-        temp_df['original_text_change'] = temp_df['original_text_change'].apply(lambda x: re.findall(r'q+', x))
 
 
-        temp_df['input_word_count'] = temp_df['original_text_change'].apply(len)
-        temp_df['input_word_length_mean'] = temp_df['original_text_change'].apply(
-            lambda x: np.mean([len(i) for i in x] if len(x) > 0 else 0))
-        temp_df['input_word_length_max'] = temp_df['original_text_change'].apply(
-            lambda x: np.max([len(i) for i in x] if len(x) > 0 else 0))
-        temp_df['input_word_length_std'] = temp_df['original_text_change'].apply(
-            lambda x: np.std([len(i) for i in x] if len(x) > 0 else 0))
-        temp_df.drop(['original_text_change','id'], axis=1, inplace=True)
-        return temp_df
     def get_feature_names_out(self, input_features=None):
         return [f"{i}" for i in self.features]
 
@@ -314,6 +295,6 @@ if __name__ == "__main__":
     # Aggreagating the columns for both train and test
     train_postprocessed_numpy = post_processing.fit_transform(train_postprocessed_df)
     train_postprocessed_df = pd.DataFrame(train_postprocessed_numpy, columns=post_processing.get_feature_names_out())
-    print(train_postprocessed_df["input_word_length_max"])
+    print(train_postprocessed_df.columns)
 
 
